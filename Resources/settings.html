@@ -10,13 +10,20 @@
   <div class="container fade-in stack-6">
     <h1 class="text-lg font-semibold">Settings</h1>
 
-    <!-- API Key Section -->
-    <section class="stack-3">
-      <h2 class="section-heading">API Key</h2>
+    <!-- Tab bar -->
+    <div class="tab-bar">
+      <button class="tab-btn active" onclick="switchTab('key')">API Key</button>
+      <button class="tab-btn" onclick="switchTab('voice')">Voice</button>
+      <button class="tab-btn" onclick="switchTab('service')">Service</button>
+      <button class="tab-btn" onclick="switchTab('shortcut')">Shortcut</button>
+    </div>
+
+    <!-- Tab: API Key -->
+    <div id="tab-key" class="tab-panel active stack-3">
       <div class="input-wrapper">
         <input id="apiKey" name="apiKey" autocomplete="off" type="password"
                placeholder="dg-xxxxxxxxxxxx" class="input input-with-toggle">
-        <button onclick="toggleKeyVisibility()" id="btnToggle" class="input-toggle" title="Show/hide key">
+        <button onclick="toggleKeyVisibility()" class="input-toggle" title="Show/hide key">
           <svg id="iconEye" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z"/>
             <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
@@ -26,16 +33,15 @@
           </svg>
         </button>
       </div>
-
       <div class="flex-row gap-3">
         <button onclick="saveKey()" id="btnSave" class="btn btn-primary flex-1" disabled>Save Key</button>
-        <button onclick="clearKey()" id="btnClear" class="btn btn-danger">Clear Key</button>
+        <button onclick="clearKey()" class="btn btn-danger">Clear Key</button>
       </div>
-    </section>
+      <div id="keyStatus" class="status text-center"></div>
+    </div>
 
-    <!-- Voice Section -->
-    <section class="stack-3">
-      <h2 class="section-heading">Voice</h2>
+    <!-- Tab: Voice -->
+    <div id="tab-voice" class="tab-panel stack-3">
       <div>
         <label for="voiceModel">Voice Model</label>
         <select id="voiceModel" onchange="voiceChanged()" class="input">
@@ -82,16 +88,13 @@
           <option value="aura-2-zeus-en">Zeus</option>
         </select>
       </div>
-
       <div class="flex-row gap-3">
         <button onclick="testVoice()" id="btnTestVoice" class="btn btn-secondary">Test Voice</button>
         <span id="voiceStatus" class="text-sm"></span>
       </div>
-
-      <!-- Audio player -->
       <div id="playerWrap" class="hidden">
         <div class="player">
-          <button onclick="togglePlayback()" id="btnPlay" class="player-btn" title="Play/Pause">
+          <button onclick="togglePlayback()" class="player-btn" title="Play/Pause">
             <svg id="iconPlay" class="player-icon" fill="currentColor" viewBox="0 0 20 20">
               <path d="M6.3 2.84A1.5 1.5 0 004 4.11v11.78a1.5 1.5 0 002.3 1.27l9.344-5.891a1.5 1.5 0 000-2.538L6.3 2.84z"/>
             </svg>
@@ -105,19 +108,35 @@
           <span class="player-time text-xs text-muted" id="playerTime">0:00</span>
         </div>
       </div>
-    </section>
+    </div>
 
-    <!-- Service Status -->
-    <section id="serviceSection" class="hidden">
-      <div id="serviceStatus" class="flex-row gap-3 text-sm" style="padding:10px 12px;border-radius:8px;border:1px solid var(--border);background:var(--bg-card);">
+    <!-- Tab: Service -->
+    <div id="tab-service" class="tab-panel stack-3">
+      <p class="text-sm text-muted">The Read Aloud service lets you select text in any app, right-click, and have it read aloud.</p>
+      <div id="serviceStatus" class="info-box flex-row gap-3 text-sm"></div>
+      <p class="text-xs text-muted">System Settings → Keyboard → Keyboard Shortcuts → Services → Text → Read Aloud</p>
+    </div>
+
+    <!-- Tab: Shortcut -->
+    <div id="tab-shortcut" class="tab-panel stack-3">
+      <p class="text-sm text-muted">Set a global keyboard shortcut to read selected text aloud from any app.</p>
+
+      <div id="shortcutBox" class="shortcut-display" onclick="startRecording()">
+        <span id="shortcutLabel" class="text-muted text-sm">Click to record shortcut</span>
       </div>
-    </section>
 
-    <!-- Key status -->
-    <div id="keyStatus" class="status text-center"></div>
+      <div class="flex-row gap-3">
+        <button onclick="startRecording()" id="btnRecord" class="btn btn-primary flex-1">Record Shortcut</button>
+        <button onclick="clearShortcut()" id="btnClearShortcut" class="btn btn-danger hidden">Clear</button>
+      </div>
+
+      <div id="accessStatus" class="hidden"></div>
+
+      <p class="text-xs text-muted">Requires Accessibility permission to read selected text. You'll be prompted when setting a shortcut.</p>
+    </div>
   </div>
 
-  <!-- Clear confirmation modal -->
+  <!-- Clear key confirmation modal -->
   <div id="clearModal" class="modal-overlay">
     <div class="modal">
       <h3 class="font-semibold">Clear API Key?</h3>
@@ -130,20 +149,32 @@
   </div>
 
 <script>
+// ── Tabs ──────────────────────────────────────
+function switchTab(name) {
+  document.querySelectorAll('.tab-btn').forEach((b, i) => {
+    b.classList.toggle('active', b.textContent.toLowerCase().replace(/\s/g,'') ===
+      {key:'apikey',voice:'voice',service:'service',shortcut:'shortcut'}[name]);
+  });
+  // Simpler: match by data
+  const tabs = ['key','voice','service','shortcut'];
+  const labels = ['API Key','Voice','Service','Shortcut'];
+  tabs.forEach((t, i) => {
+    document.getElementById('tab-' + t).classList.toggle('active', t === name);
+  });
+  document.querySelectorAll('.tab-btn').forEach((b, i) => {
+    b.classList.toggle('active', tabs[i] === name);
+  });
+}
+
+// ── API Key ───────────────────────────────────
 const keyInput = document.getElementById('apiKey');
 const btnSave = document.getElementById('btnSave');
 const keyStatus = document.getElementById('keyStatus');
-const voiceStatus = document.getElementById('voiceStatus');
-const voiceSelect = document.getElementById('voiceModel');
 let keyVisible = false;
 
 keyInput.addEventListener('input', () => {
   btnSave.disabled = keyInput.value.trim().length === 0;
 });
-
-function postAction(action, data = {}) {
-  window.webkit.messageHandlers.clarion.postMessage({ action, ...data });
-}
 
 function toggleKeyVisibility() {
   keyVisible = !keyVisible;
@@ -151,91 +182,136 @@ function toggleKeyVisibility() {
   document.getElementById('iconEye').classList.toggle('hidden', keyVisible);
   document.getElementById('iconEyeSlash').classList.toggle('hidden', !keyVisible);
 }
-
 function saveKey() {
   const apiKey = keyInput.value.trim();
   if (!apiKey) return;
   postAction('saveKey', { apiKey });
 }
+function clearKey() { document.getElementById('clearModal').classList.add('visible'); }
+function dismissClearModal() { document.getElementById('clearModal').classList.remove('visible'); }
+function confirmClear() { dismissClearModal(); postAction('clearKey'); }
 
-function clearKey() {
-  document.getElementById('clearModal').classList.add('visible');
-}
-
-function dismissClearModal() {
-  document.getElementById('clearModal').classList.remove('visible');
-}
-
-function confirmClear() {
-  dismissClearModal();
-  postAction('clearKey');
-}
-
-function voiceChanged() {
-  postAction('setVoiceModel', { model: voiceSelect.value });
-}
-
-// Audio player state
+// ── Voice ─────────────────────────────────────
+const voiceSelect = document.getElementById('voiceModel');
+const voiceStatus = document.getElementById('voiceStatus');
 let audio = null;
-let animFrame = null;
+
+function voiceChanged() { postAction('setVoiceModel', { model: voiceSelect.value }); }
 
 function testVoice() {
   const apiKey = keyInput.value.trim();
-  // Stop any current playback
   if (audio) { audio.pause(); audio = null; }
   postAction('testVoice', { apiKey, model: voiceSelect.value });
 }
-
 function loadAudio(base64) {
   if (audio) { audio.pause(); }
-  if (animFrame) { cancelAnimationFrame(animFrame); }
-
   audio = new Audio('data:audio/wav;base64,' + base64);
-  audio.addEventListener('ended', () => { updatePlayerUI(false); });
+  audio.addEventListener('ended', () => updatePlayerUI(false));
   audio.addEventListener('timeupdate', updateProgress);
-
   document.getElementById('playerWrap').classList.remove('hidden');
   audio.play();
   updatePlayerUI(true);
 }
-
 function togglePlayback() {
   if (!audio) return;
   if (audio.paused) { audio.play(); updatePlayerUI(true); }
   else { audio.pause(); updatePlayerUI(false); }
 }
-
 function updatePlayerUI(playing) {
   document.getElementById('iconPlay').classList.toggle('hidden', playing);
   document.getElementById('iconPause').classList.toggle('hidden', !playing);
 }
-
 function updateProgress() {
   if (!audio || !audio.duration) return;
   const pct = (audio.currentTime / audio.duration) * 100;
   document.getElementById('playerProgress').style.width = pct + '%';
-  const remaining = audio.duration - audio.currentTime;
-  const m = Math.floor(remaining / 60);
-  const s = Math.floor(remaining % 60).toString().padStart(2, '0');
-  document.getElementById('playerTime').textContent = m + ':' + s;
+  const rem = audio.duration - audio.currentTime;
+  document.getElementById('playerTime').textContent =
+    Math.floor(rem / 60) + ':' + Math.floor(rem % 60).toString().padStart(2, '0');
 }
-
 function seek(e) {
   if (!audio || !audio.duration) return;
-  const track = document.getElementById('playerTrack');
-  const rect = track.getBoundingClientRect();
-  const pct = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
-  audio.currentTime = pct * audio.duration;
+  const rect = document.getElementById('playerTrack').getBoundingClientRect();
+  audio.currentTime = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width)) * audio.duration;
+}
+
+// ── Shortcut ──────────────────────────────────
+let recording = false;
+
+function startRecording() {
+  recording = true;
+  const box = document.getElementById('shortcutBox');
+  box.classList.add('recording');
+  box.classList.remove('has-value');
+  document.getElementById('shortcutLabel').textContent = 'Press shortcut…';
+  document.getElementById('shortcutLabel').classList.add('text-muted');
+  document.getElementById('shortcutLabel').classList.remove('text-muted');
+}
+
+document.addEventListener('keydown', (e) => {
+  if (!recording) return;
+  // Need at least one modifier
+  if (!e.metaKey && !e.ctrlKey && !e.altKey) return;
+  // Ignore bare modifier keys
+  if (['Meta','Control','Alt','Shift'].includes(e.key)) return;
+
+  e.preventDefault();
+  recording = false;
+
+  const box = document.getElementById('shortcutBox');
+  box.classList.remove('recording');
+  box.classList.add('has-value');
+
+  // Build display string
+  let display = '';
+  if (e.ctrlKey) display += '⌃';
+  if (e.altKey) display += '⌥';
+  if (e.shiftKey) display += '⇧';
+  if (e.metaKey) display += '⌘';
+  display += e.key.length === 1 ? e.key.toUpperCase() : e.key;
+
+  document.getElementById('shortcutLabel').textContent = display;
+  document.getElementById('shortcutLabel').classList.remove('text-muted');
+  document.getElementById('btnClearShortcut').classList.remove('hidden');
+
+  postAction('saveShortcut', {
+    code: e.code,
+    cmd: e.metaKey,
+    shift: e.shiftKey,
+    option: e.altKey,
+    control: e.ctrlKey,
+    display: display
+  });
+});
+
+// Cancel recording on Escape
+document.addEventListener('keyup', (e) => {
+  if (recording && e.key === 'Escape') {
+    recording = false;
+    const box = document.getElementById('shortcutBox');
+    box.classList.remove('recording');
+    // Restore previous state
+    postAction('checkShortcut');
+  }
+});
+
+function clearShortcut() {
+  postAction('clearShortcut');
+}
+
+// ── Bridge ────────────────────────────────────
+function postAction(action, data = {}) {
+  window.webkit.messageHandlers.clarion.postMessage({ action, ...data });
 }
 
 function updateState(state) {
+  // API Key
   if (state.apiKey !== undefined) {
     keyInput.value = state.apiKey;
     btnSave.disabled = state.apiKey.length === 0;
   }
-  if (state.voiceModel) {
-    voiceSelect.value = state.voiceModel;
-  }
+  if (state.voiceModel) voiceSelect.value = state.voiceModel;
+
   if (state.keySaved === true) {
     keyStatus.innerHTML = '<span class="text-success">✓ Key saved</span>';
     setTimeout(() => { keyStatus.innerHTML = ''; }, 2000);
@@ -248,9 +324,22 @@ function updateState(state) {
     keyStatus.innerHTML = '<span class="text-muted">Key cleared</span>';
     setTimeout(() => { keyStatus.innerHTML = ''; }, 2000);
   }
-  // Service status
+
+  // Voice test
+  if (state.voiceTest === 'testing') {
+    voiceStatus.innerHTML = '<span class="text-muted">Testing…</span>';
+    document.getElementById('btnTestVoice').disabled = true;
+  } else if (state.voiceTest === 'success') {
+    voiceStatus.innerHTML = '';
+    document.getElementById('btnTestVoice').disabled = false;
+    if (state.audioData) loadAudio(state.audioData);
+  } else if (state.voiceTest === 'failure') {
+    voiceStatus.innerHTML = '<span class="text-error">✗ Test failed</span>';
+    document.getElementById('btnTestVoice').disabled = false;
+  }
+
+  // Service
   if (state.serviceEnabled !== undefined) {
-    document.getElementById('serviceSection').classList.remove('hidden');
     const el = document.getElementById('serviceStatus');
     if (state.serviceEnabled) {
       el.innerHTML = '<span class="text-success">✓</span> <span>Read Aloud service is <strong>enabled</strong></span>';
@@ -260,20 +349,35 @@ function updateState(state) {
     }
   }
 
-  // Voice test results
-  if (state.voiceTest === 'testing') {
-    voiceStatus.innerHTML = '<span class="text-muted">Testing…</span>';
-    document.getElementById('btnTestVoice').disabled = true;
-  } else if (state.voiceTest === 'success') {
-    voiceStatus.innerHTML = '';
-    document.getElementById('btnTestVoice').disabled = false;
-    if (state.audioData) { loadAudio(state.audioData); }
-  } else if (state.voiceTest === 'failure') {
-    voiceStatus.innerHTML = '<span class="text-error">✗ Test failed</span>';
-    document.getElementById('btnTestVoice').disabled = false;
-  } else if (state.voiceTest === 'idle') {
-    voiceStatus.innerHTML = '';
-    document.getElementById('btnTestVoice').disabled = false;
+  // Shortcut
+  if (state.shortcutDisplay !== undefined) {
+    const box = document.getElementById('shortcutBox');
+    const label = document.getElementById('shortcutLabel');
+    if (state.shortcutDisplay) {
+      box.classList.add('has-value');
+      label.textContent = state.shortcutDisplay;
+      label.classList.remove('text-muted');
+      document.getElementById('btnClearShortcut').classList.remove('hidden');
+      document.getElementById('btnRecord').textContent = 'Change Shortcut';
+    } else {
+      box.classList.remove('has-value');
+      label.textContent = 'Click to record shortcut';
+      label.classList.add('text-muted');
+      document.getElementById('btnClearShortcut').classList.add('hidden');
+      document.getElementById('btnRecord').textContent = 'Record Shortcut';
+    }
+  }
+
+  // Accessibility
+  if (state.accessibilityTrusted !== undefined) {
+    const el = document.getElementById('accessStatus');
+    el.classList.remove('hidden');
+    if (state.accessibilityTrusted) {
+      el.innerHTML = '<div class="info-box flex-row gap-3 text-sm"><span class="text-success">✓</span> <span>Accessibility permission granted</span></div>';
+    } else {
+      el.innerHTML = '<div class="info-box flex-row gap-3 text-sm"><span class="text-error">✗</span> <span style="flex:1">Accessibility permission required</span>' +
+        '<button onclick="postAction(\'requestAccessibility\')" class="btn btn-secondary" style="padding:4px 10px;font-size:0.75rem;">Grant</button></div>';
+    }
   }
 }
 </script>

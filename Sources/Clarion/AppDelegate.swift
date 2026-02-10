@@ -17,9 +17,30 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             name: NSNotification.Name("ShowSettings"), object: nil
         )
 
+        // Load saved hotkey and wire callback
+        HotkeyManager.shared.onHotkey = { [weak self] in
+            self?.hotkeyTriggered()
+        }
+        HotkeyManager.shared.loadSaved()
+
         if KeychainManager.getAPIKey() == nil {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
                 self.showOnboarding()
+            }
+        }
+    }
+
+    // MARK: - Hotkey Callback
+
+    private func hotkeyTriggered() {
+        guard HotkeyManager.isAccessibilityTrusted else {
+            HotkeyManager.requestAccessibility()
+            return
+        }
+        HotkeyManager.shared.getSelectedText { text in
+            guard let text else { return }
+            Task { @MainActor in
+                SpeechManager.shared.speak(text)
             }
         }
     }
@@ -110,7 +131,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             let model = SpeechManager.shared.voiceModel
             let escaped = key.replacingOccurrences(of: "'", with: "\\'")
             let enabled = self.isServiceEnabled()
-            bridge.evaluateJS("updateState({apiKey:'\(escaped)',voiceModel:'\(model)',serviceEnabled:\(enabled)})")
+            let shortcut = HotkeyManager.shared.savedDisplay ?? ""
+            let shortcutEscaped = shortcut.replacingOccurrences(of: "'", with: "\\'")
+            let accessible = HotkeyManager.isAccessibilityTrusted
+            bridge.evaluateJS("updateState({apiKey:'\(escaped)',voiceModel:'\(model)',serviceEnabled:\(enabled),shortcutDisplay:'\(shortcutEscaped)',accessibilityTrusted:\(accessible)})")
         }
     }
 
@@ -159,6 +183,44 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         case "openSystemPrefs":
             if let url = URL(string: "x-apple.systempreferences:com.apple.Keyboard-Settings.extension") {
                 NSWorkspace.shared.open(url)
+            }
+
+        case "checkService":
+            let enabled = isServiceEnabled()
+            settingsBridge?.evaluateJS("updateState({serviceEnabled:\(enabled)})")
+
+        case "saveShortcut":
+            if let code = body["code"] as? String,
+               let carbonKey = HotkeyManager.carbonKeyCode(from: code) {
+                let cmd = body["cmd"] as? Bool ?? false
+                let shift = body["shift"] as? Bool ?? false
+                let option = body["option"] as? Bool ?? false
+                let control = body["control"] as? Bool ?? false
+                let display = body["display"] as? String ?? ""
+                let mods = HotkeyManager.carbonModifiers(cmd: cmd, shift: shift, option: option, control: control)
+                HotkeyManager.shared.save(keyCode: carbonKey, modifiers: mods, display: display)
+                let accessible = HotkeyManager.isAccessibilityTrusted
+                settingsBridge?.evaluateJS("updateState({shortcutDisplay:'\(display)',accessibilityTrusted:\(accessible)})")
+                if !accessible {
+                    HotkeyManager.requestAccessibility()
+                }
+            }
+
+        case "clearShortcut":
+            HotkeyManager.shared.clear()
+            settingsBridge?.evaluateJS("updateState({shortcutDisplay:''})")
+
+        case "checkShortcut":
+            let display = HotkeyManager.shared.savedDisplay ?? ""
+            let escaped = display.replacingOccurrences(of: "'", with: "\\'")
+            let accessible = HotkeyManager.isAccessibilityTrusted
+            settingsBridge?.evaluateJS("updateState({shortcutDisplay:'\(escaped)',accessibilityTrusted:\(accessible)})")
+
+        case "requestAccessibility":
+            HotkeyManager.requestAccessibility()
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+                let accessible = HotkeyManager.isAccessibilityTrusted
+                self.settingsBridge?.evaluateJS("updateState({accessibilityTrusted:\(accessible)})")
             }
 
         case "dismiss":
