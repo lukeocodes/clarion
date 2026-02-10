@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.1](https://github.com/lukeocodes/clarion/compare/v0.2.0...v0.2.1) (2026-02-10)
+
+
+### Documentation
+
+* update README with features and install options ([8002753](https://github.com/lukeocodes/clarion/commit/8002753a27e474f2f03c5e3d96a40d1c8328374f))
+
 ## [0.2.0](https://github.com/lukeocodes/clarion/compare/v0.1.0...v0.2.0) (2026-02-10)
 
 
