@@ -1,4 +1,5 @@
 import Foundation
+import NaturalLanguage
 
 @MainActor
 final class SpeechManager: ObservableObject {
@@ -11,7 +12,32 @@ final class SpeechManager: ObservableObject {
     private var ttsClient: DeepgramTTSClient?
     private var audioPlayer: AudioStreamPlayer?
 
+    // Default voice per supported language (Aura 2 voice names are language-specific)
+    private static let languageVoices: [NLLanguage: String] = [
+        .french:    "aura-2-agathe-fr",
+        .spanish:   "aura-2-agustina-es",
+        .japanese:  "aura-2-ama-ja",
+        .german:    "aura-2-aurelia-de",
+        .dutch:     "aura-2-beatrix-nl",
+        .italian:   "aura-2-cesare-it",
+    ]
+
     private init() {}
+
+    /// Detect language of text and return the appropriate voice model.
+    /// Uses the user's selected voice for English, a per-language default otherwise.
+    func resolveModel(for text: String) -> String {
+        let recognizer = NLLanguageRecognizer()
+        recognizer.processString(text)
+        guard let lang = recognizer.dominantLanguage, lang != .english else {
+            return voiceModel
+        }
+        if let voice = Self.languageVoices[lang] {
+            print("[SpeechManager] Detected \(lang.rawValue), using \(voice)")
+            return voice
+        }
+        return voiceModel
+    }
 
     func speak(_ text: String) {
         guard let apiKey = KeychainManager.getAPIKey(), !apiKey.isEmpty else {
@@ -25,6 +51,7 @@ final class SpeechManager: ObservableObject {
         let chunks = TextChunker.chunk(text)
         guard !chunks.isEmpty else { return }
 
+        let model = resolveModel(for: text)
         isSpeaking = true
 
         let client = DeepgramTTSClient()
@@ -44,7 +71,7 @@ final class SpeechManager: ObservableObject {
         }
 
         player.start()
-        client.connect(apiKey: apiKey, model: voiceModel)
+        client.connect(apiKey: apiKey, model: model)
 
         // Send chunks with flushes at natural boundaries
         Task.detached { [weak client] in
