@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Clarion Setup</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body class="page-center">
+  <div class="container fade-in">
+    <!-- Icon + heading -->
+    <div class="text-center mb-6">
+      <div class="icon-badge mb-4" style="margin-left:auto;margin-right:auto;">
+        <svg fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M19.114 5.636a9 9 0 010 12.728M16.463 8.288a5.25 5.25 0 010 7.424M6.75 8.25l4.72-4.72a.75.75 0 011.28.53v15.88a.75.75 0 01-1.28.53l-4.72-4.72H4.51c-.88 0-1.704-.507-1.938-1.354A9.01 9.01 0 012.25 12c0-.83.112-1.633.322-2.396C2.806 8.756 3.63 8.25 4.51 8.25H6.75z"/>
+        </svg>
+      </div>
+      <h1 class="text-xl font-semibold">Welcome to Clarion</h1>
+      <p class="text-sm text-muted mt-1">Enter your Deepgram API key to enable text-to-speech.</p>
+    </div>
+
+    <!-- Form -->
+    <div class="stack-4">
+      <div>
+        <label for="apiKey">API Key</label>
+        <input type="password" id="apiKey" name="apiKey" autocomplete="off"
+               placeholder="dg-xxxxxxxxxxxx" class="input">
+        <a href="#" onclick="postAction('openURL',{url:'https://console.deepgram.com'}); return false;"
+           class="link mt-1-5" style="display:inline-block;margin-top:6px;">
+          Get a key at console.deepgram.com
+        </a>
+      </div>
+
+      <!-- Buttons -->
+      <div class="flex-row gap-3">
+        <button onclick="testKey()" id="btnTest" class="btn btn-secondary flex-1" disabled>Test</button>
+        <button onclick="saveKey()" id="btnSave" class="btn btn-primary flex-1" disabled>Save</button>
+      </div>
+
+      <!-- Status -->
+      <div id="status" class="status text-center"></div>
+
+      <!-- Hint -->
+      <p class="text-xs text-placeholder text-center leading-relaxed">
+        After saving, enable the service in<br>
+        System Settings → Keyboard → Keyboard Shortcuts → Services
+      </p>
+    </div>
+  </div>
+
+<script>
+const keyInput = document.getElementById('apiKey');
+const btnTest = document.getElementById('btnTest');
+const btnSave = document.getElementById('btnSave');
+const status = document.getElementById('status');
+
+keyInput.addEventListener('input', () => {
+  const hasValue = keyInput.value.trim().length > 0;
+  btnTest.disabled = !hasValue;
+  btnSave.disabled = !hasValue;
+});
+
+function postAction(action, data = {}) {
+  window.webkit.messageHandlers.clarion.postMessage({ action, ...data });
+}
+
+function testKey() {
+  const apiKey = keyInput.value.trim();
+  if (!apiKey) return;
+  btnTest.disabled = true;
+  status.innerHTML = '<span class="text-muted">Testing connection…</span>';
+  postAction('testKey', { apiKey });
+}
+
+function saveKey() {
+  const apiKey = keyInput.value.trim();
+  if (!apiKey) return;
+  postAction('saveKey', { apiKey });
+}
+
+function updateState(state) {
+  if (state.testResult === 'success') {
+    status.innerHTML = '<span class="text-success">✓ Connection successful!</span>';
+    btnTest.disabled = false;
+  } else if (state.testResult === 'failure') {
+    status.innerHTML = '<span class="text-error">✗ Connection failed. Check your key.</span>';
+    btnTest.disabled = false;
+  } else if (state.testResult === 'testing') {
+    status.innerHTML = '<span class="text-muted">Testing connection…</span>';
+    btnTest.disabled = true;
+  } else {
+    status.innerHTML = '';
+    btnTest.disabled = keyInput.value.trim().length === 0;
+  }
+}
+</script>
+</body>
+</html>
