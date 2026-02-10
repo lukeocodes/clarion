@@ -57,15 +57,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         case "saveKey":
             let saved = KeychainManager.save(apiKey: apiKey)
             if saved {
-                onboardingWindow?.close()
-                onboardingWindow = nil
-                onboardingBridge = nil
+                let enabled = isServiceEnabled()
+                onboardingBridge?.evaluateJS("updateState({keySaved:true,serviceEnabled:\(enabled)})")
             }
 
         case "openURL":
             if let urlStr = body["url"] as? String, let url = URL(string: urlStr) {
                 NSWorkspace.shared.open(url)
             }
+
+        case "openSystemPrefs":
+            if let url = URL(string: "x-apple.systempreferences:com.apple.Keyboard-Settings.extension") {
+                NSWorkspace.shared.open(url)
+            }
+
+        case "checkService":
+            let enabled = isServiceEnabled()
+            onboardingBridge?.evaluateJS("updateState({serviceEnabled:\(enabled)})")
 
         case "dismiss":
             onboardingWindow?.close()
@@ -101,7 +109,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             let key = KeychainManager.getAPIKey() ?? ""
             let model = SpeechManager.shared.voiceModel
             let escaped = key.replacingOccurrences(of: "'", with: "\\'")
-            bridge.evaluateJS("updateState({apiKey:'\(escaped)',voiceModel:'\(model)'})")
+            let enabled = self.isServiceEnabled()
+            bridge.evaluateJS("updateState({apiKey:'\(escaped)',voiceModel:'\(model)',serviceEnabled:\(enabled)})")
         }
     }
 
@@ -147,6 +156,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 NSWorkspace.shared.open(url)
             }
 
+        case "openSystemPrefs":
+            if let url = URL(string: "x-apple.systempreferences:com.apple.Keyboard-Settings.extension") {
+                NSWorkspace.shared.open(url)
+            }
+
         case "dismiss":
             settingsWindow?.close()
             settingsWindow = nil
@@ -155,6 +169,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         default:
             break
         }
+    }
+
+    // MARK: - Service Status
+
+    private func isServiceEnabled() -> Bool {
+        guard let pbs = UserDefaults(suiteName: "pbs"),
+              let status = pbs.dictionary(forKey: "NSServicesStatus"),
+              let entry = status["com.lukeocodes.clarion - Read Aloud - readAloud"] as? [String: Any]
+        else { return false }
+        return entry["enabled_context_menu"] as? Bool ?? (entry["enabled_context_menu"] as? Int == 1)
     }
 
     // MARK: - Window Factory

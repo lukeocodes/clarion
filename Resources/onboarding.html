@@ -8,44 +8,86 @@
 </head>
 <body class="page-center">
   <div class="container fade-in">
-    <!-- Icon + heading -->
-    <div class="text-center mb-6">
-      <div class="icon-badge mb-4" style="margin-left:auto;margin-right:auto;">
-        <svg fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" d="M19.114 5.636a9 9 0 010 12.728M16.463 8.288a5.25 5.25 0 010 7.424M6.75 8.25l4.72-4.72a.75.75 0 011.28.53v15.88a.75.75 0 01-1.28.53l-4.72-4.72H4.51c-.88 0-1.704-.507-1.938-1.354A9.01 9.01 0 012.25 12c0-.83.112-1.633.322-2.396C2.806 8.756 3.63 8.25 4.51 8.25H6.75z"/>
-        </svg>
+
+    <!-- Step 1: API Key -->
+    <div id="step1">
+      <div class="text-center mb-6">
+        <div class="icon-badge mb-4" style="margin-left:auto;margin-right:auto;">
+          <svg fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M19.114 5.636a9 9 0 010 12.728M16.463 8.288a5.25 5.25 0 010 7.424M6.75 8.25l4.72-4.72a.75.75 0 011.28.53v15.88a.75.75 0 01-1.28.53l-4.72-4.72H4.51c-.88 0-1.704-.507-1.938-1.354A9.01 9.01 0 012.25 12c0-.83.112-1.633.322-2.396C2.806 8.756 3.63 8.25 4.51 8.25H6.75z"/>
+          </svg>
+        </div>
+        <h1 class="text-xl font-semibold">Welcome to Clarion</h1>
+        <p class="text-sm text-muted mt-1">Enter your Deepgram API key to enable text-to-speech.</p>
       </div>
-      <h1 class="text-xl font-semibold">Welcome to Clarion</h1>
-      <p class="text-sm text-muted mt-1">Enter your Deepgram API key to enable text-to-speech.</p>
+
+      <div class="stack-4">
+        <div>
+          <label for="apiKey">API Key</label>
+          <input type="password" id="apiKey" name="apiKey" autocomplete="off"
+                 placeholder="dg-xxxxxxxxxxxx" class="input">
+          <a href="#" onclick="postAction('openURL',{url:'https://console.deepgram.com'}); return false;"
+             class="link mt-1-5" style="display:inline-block;margin-top:6px;">
+            Get a key at console.deepgram.com
+          </a>
+        </div>
+
+        <div class="flex-row gap-3">
+          <button onclick="testKey()" id="btnTest" class="btn btn-secondary flex-1" disabled>Test</button>
+          <button onclick="saveKey()" id="btnSave" class="btn btn-primary flex-1" disabled>Save</button>
+        </div>
+
+        <div id="status" class="status text-center"></div>
+      </div>
     </div>
 
-    <!-- Form -->
-    <div class="stack-4">
-      <div>
-        <label for="apiKey">API Key</label>
-        <input type="password" id="apiKey" name="apiKey" autocomplete="off"
-               placeholder="dg-xxxxxxxxxxxx" class="input">
-        <a href="#" onclick="postAction('openURL',{url:'https://console.deepgram.com'}); return false;"
-           class="link mt-1-5" style="display:inline-block;margin-top:6px;">
-          Get a key at console.deepgram.com
-        </a>
+    <!-- Step 2: Enable Service -->
+    <div id="step2" class="hidden">
+      <div class="text-center mb-6">
+        <div class="icon-badge mb-4" style="margin-left:auto;margin-right:auto;background:var(--success);color:white;">
+          <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" style="color:white;">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5"/>
+          </svg>
+        </div>
+        <h1 class="text-xl font-semibold">Key saved!</h1>
+        <p class="text-sm text-muted mt-1">One more step — enable the Read Aloud service so it appears in your right-click menu.</p>
       </div>
 
-      <!-- Buttons -->
-      <div class="flex-row gap-3">
-        <button onclick="testKey()" id="btnTest" class="btn btn-secondary flex-1" disabled>Test</button>
-        <button onclick="saveKey()" id="btnSave" class="btn btn-primary flex-1" disabled>Save</button>
+      <div class="stack-4">
+        <!-- Show when not enabled -->
+        <div id="serviceNotEnabled">
+          <div class="stack-4">
+            <button onclick="postAction('openSystemPrefs')" class="btn btn-primary w-full">
+              Open Keyboard Shortcuts
+            </button>
+
+            <div class="text-xs text-muted leading-relaxed" style="padding:12px;border-radius:8px;background:var(--bg-card);border:1px solid var(--border);">
+              <p class="font-medium" style="margin-bottom:8px;">In System Settings:</p>
+              <p>1. Select <strong>Services</strong> in the left sidebar</p>
+              <p>2. Under <strong>Text</strong>, enable <strong>Read Aloud</strong></p>
+              <p style="margin-top:8px;">Then select text anywhere, right-click → Services → Read Aloud</p>
+            </div>
+
+            <button onclick="postAction('checkService')" class="btn btn-secondary w-full">I've enabled it</button>
+          </div>
+        </div>
+
+        <!-- Show when enabled -->
+        <div id="serviceEnabled" class="hidden">
+          <div class="stack-4">
+            <div class="flex-row gap-3 text-sm" style="padding:10px 12px;border-radius:8px;border:1px solid var(--border);background:var(--bg-card);">
+              <span class="text-success">✓</span>
+              <span>Read Aloud service is <strong>enabled</strong></span>
+            </div>
+
+            <p class="text-xs text-muted text-center">Select text anywhere, right-click → Services → Read Aloud</p>
+
+            <button onclick="postAction('dismiss')" class="btn btn-primary w-full">Done</button>
+          </div>
+        </div>
       </div>
-
-      <!-- Status -->
-      <div id="status" class="status text-center"></div>
-
-      <!-- Hint -->
-      <p class="text-xs text-placeholder text-center leading-relaxed">
-        After saving, enable the service in<br>
-        System Settings → Keyboard → Keyboard Shortcuts → Services
-      </p>
     </div>
+
   </div>
 
 <script>
@@ -78,7 +120,19 @@ function saveKey() {
   postAction('saveKey', { apiKey });
 }
 
+function showStep2() {
+  document.getElementById('step1').classList.add('hidden');
+  document.getElementById('step2').classList.remove('hidden');
+}
+
 function updateState(state) {
+  if (state.keySaved) {
+    showStep2();
+  }
+  if (state.serviceEnabled !== undefined) {
+    document.getElementById('serviceNotEnabled').classList.toggle('hidden', state.serviceEnabled);
+    document.getElementById('serviceEnabled').classList.toggle('hidden', !state.serviceEnabled);
+  }
   if (state.testResult === 'success') {
     status.innerHTML = '<span class="text-success">✓ Connection successful!</span>';
     btnTest.disabled = false;

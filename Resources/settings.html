@@ -107,6 +107,12 @@
       </div>
     </section>
 
+    <!-- Service Status -->
+    <section id="serviceSection" class="hidden">
+      <div id="serviceStatus" class="flex-row gap-3 text-sm" style="padding:10px 12px;border-radius:8px;border:1px solid var(--border);background:var(--bg-card);">
+      </div>
+    </section>
+
     <!-- Key status -->
     <div id="keyStatus" class="status text-center"></div>
   </div>
@@ -242,6 +248,18 @@ function updateState(state) {
     keyStatus.innerHTML = '<span class="text-muted">Key cleared</span>';
     setTimeout(() => { keyStatus.innerHTML = ''; }, 2000);
   }
+  // Service status
+  if (state.serviceEnabled !== undefined) {
+    document.getElementById('serviceSection').classList.remove('hidden');
+    const el = document.getElementById('serviceStatus');
+    if (state.serviceEnabled) {
+      el.innerHTML = '<span class="text-success">✓</span> <span>Read Aloud service is <strong>enabled</strong></span>';
+    } else {
+      el.innerHTML = '<span class="text-error">✗</span> <span style="flex:1">Read Aloud service is <strong>not enabled</strong></span>' +
+        '<button onclick="postAction(\'openSystemPrefs\')" class="btn btn-secondary" style="padding:4px 10px;font-size:0.75rem;">Enable</button>';
+    }
+  }
+
   // Voice test results
   if (state.voiceTest === 'testing') {
     voiceStatus.innerHTML = '<span class="text-muted">Testing…</span>';
