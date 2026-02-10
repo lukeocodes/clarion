@@ -1,3 +1,4 @@
+import AVFoundation
 import Foundation
 import NaturalLanguage
 
@@ -9,8 +10,13 @@ final class SpeechManager: ObservableObject {
     @Published var isConnected = false
     @Published var voiceModel = "aura-2-thalia-en"
 
+    // WebSocket path
     private var ttsClient: DeepgramTTSClient?
     private var audioPlayer: AudioStreamPlayer?
+
+    // REST path
+    private var wavPlayer: AVAudioPlayer?
+    private var restTask: Task<Void, Never>?
 
     // Default voice per supported language (Aura 2 voice names are language-specific)
     private static let languageVoices: [NLLanguage: String] = [
@@ -45,13 +51,75 @@ final class SpeechManager: ObservableObject {
             return
         }
 
-        // Stop any current playback
         stop()
 
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+
+        let model = resolveModel(for: trimmed)
+
+        if trimmed.count < 1000 {
+            speakViaREST(trimmed, apiKey: apiKey, model: model)
+        } else {
+            speakViaWebSocket(trimmed, apiKey: apiKey, model: model)
+        }
+    }
+
+    // MARK: - REST path (short text)
+
+    private func speakViaREST(_ text: String, apiKey: String, model: String) {
+        isSpeaking = true
+        restTask = Task { [weak self] in
+            guard let url = URL(
+                string: "https://api.deepgram.com/v1/speak?model=\(model)&encoding=linear16&sample_rate=48000&container=wav"
+            ) else {
+                await MainActor.run { self?.isSpeaking = false }
+                return
+            }
+
+            var request = URLRequest(url: url)
+            request.httpMethod = "POST"
+            request.setValue("Token \(apiKey)", forHTTPHeaderField: "Authorization")
+            request.setValue("text/plain", forHTTPHeaderField: "Content-Type")
+            request.httpBody = text.data(using: .utf8)
+            request.timeoutInterval = 30
+
+            do {
+                let (data, response) = try await URLSession.shared.data(for: request)
+                guard !Task.isCancelled else { return }
+                guard let http = response as? HTTPURLResponse, http.statusCode == 200 else {
+                    print("[SpeechManager] REST TTS HTTP error")
+                    await MainActor.run { self?.isSpeaking = false }
+                    return
+                }
+                await MainActor.run { self?.playWAVData(data) }
+            } catch {
+                if !Task.isCancelled {
+                    print("[SpeechManager] REST TTS failed: \(error)")
+                    await MainActor.run { self?.isSpeaking = false }
+                }
+            }
+        }
+    }
+
+    private func playWAVData(_ data: Data) {
+        do {
+            let player = try AVAudioPlayer(data: data)
+            self.wavPlayer = player
+            player.delegate = self._wavDelegate
+            player.play()
+        } catch {
+            print("[SpeechManager] WAV playback failed: \(error)")
+            isSpeaking = false
+        }
+    }
+
+    // MARK: - WebSocket path (long text)
+
+    private func speakViaWebSocket(_ text: String, apiKey: String, model: String) {
         let chunks = TextChunker.chunk(text)
         guard !chunks.isEmpty else { return }
 
-        let model = resolveModel(for: text)
         isSpeaking = true
 
         let client = DeepgramTTSClient()
@@ -61,7 +129,6 @@ final class SpeechManager: ObservableObject {
 
         let handler = TTSHandler(manager: self, player: player)
         client.delegate = handler
-        // Keep handler alive via associated storage
         self._handler = handler
 
         player.onPlaybackFinished = { [weak self] in
@@ -73,29 +140,32 @@ final class SpeechManager: ObservableObject {
         player.start()
         client.connect(apiKey: apiKey, model: model)
 
-        // Send chunks with flushes at natural boundaries
         Task.detached { [weak client] in
             guard let client else { return }
             for (index, chunk) in chunks.enumerated() {
                 client.send(text: chunk)
-
-                // Flush after every few chunks or at the end
                 if (index + 1) % 3 == 0 || index == chunks.count - 1 {
                     client.flush()
                 }
-
-                // Small delay to avoid overwhelming the connection
-                try? await Task.sleep(nanoseconds: 10_000_000) // 10ms
+                try? await Task.sleep(nanoseconds: 10_000_000)
             }
         }
     }
 
     func stop() {
+        // REST path
+        restTask?.cancel()
+        restTask = nil
+        wavPlayer?.stop()
+        wavPlayer = nil
+
+        // WebSocket path
         ttsClient?.clear()
         ttsClient?.close()
         ttsClient = nil
         audioPlayer?.stop()
         audioPlayer = nil
+
         isSpeaking = false
         isConnected = false
         _handler = nil
@@ -176,8 +246,30 @@ final class SpeechManager: ObservableObject {
         _handler = nil
     }
 
-    // Handler stored to prevent deallocation
+    func wavPlaybackFinished() {
+        wavPlayer = nil
+        isSpeaking = false
+    }
+
+    // Stored to prevent deallocation
     private var _handler: AnyObject?
+    private lazy var _wavDelegate = WAVDelegate(manager: self)
+}
+
+// MARK: - WAV Playback Delegate
+
+private final class WAVDelegate: NSObject, AVAudioPlayerDelegate, @unchecked Sendable {
+    private weak var manager: SpeechManager?
+
+    init(manager: SpeechManager) {
+        self.manager = manager
+    }
+
+    nonisolated func audioPlayerDidFinishPlaying(_ player: AVAudioPlayer, successfully flag: Bool) {
+        Task { @MainActor [weak manager] in
+            manager?.wavPlaybackFinished()
+        }
+    }
 }
 
 // MARK: - TTS Delegate Handlers

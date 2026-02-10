@@ -22,6 +22,7 @@ run: bundle
 	open $(BUNDLE)
 
 install: bundle
+	rm -rf $(INSTALL_DIR)/$(APP_NAME).app
 	cp -R $(BUNDLE) $(INSTALL_DIR)/$(APP_NAME).app
 	/System/Library/CoreServices/pbs -flush
 
